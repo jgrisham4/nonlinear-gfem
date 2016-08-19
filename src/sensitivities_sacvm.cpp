@@ -223,7 +223,7 @@ arma::Mat<T> iterate(const mesh<T>& m, const int ngpts, const T tol, const int m
   while ((i<max_iter)&&(eps>tol)) {
 
     // Assembling system, applying bcs and solving
-    assemble<T>(m,ngpts,Tn,k1,k2,k3,K,F);
+    assemble<T,T>(m,ngpts,Tn,k1,k2,k3,K,F);
     apply_dirichlet<T>(m,(T) 0.0,(T) 100.0,K,F);
     Tnp1 = solve(K,F);
 
