@@ -23,7 +23,7 @@ template <typename U> U dTdk1_exact(U x, U TL, U TR, U L);
 template <typename U> U dTdk2_exact(U x, U TL, U TR, U L);
 template <typename U> U dTdk3_exact(U x, U TL, U TR, U L);
 template <typename U> U L2_T(const mesh<U>& g, const arma::Col<U>& T_n, const int ngpts);
-template <typename U> void compute_sensitivities(const mesh<U>& m, const int ngpts, const arma::Mat<U>& K, const arma::Col<U>& temperature, const U k1, const U k2, const U k3, const U dk1, const U dk2, const U dk3, arma::Col<U>& dTdk1, arma::Col<U>& dTdk2, arma::Col<U>& dTdk3);
+template <typename U> void compute_sensitivity(const mesh<U>& m, const int ngpts, const arma::Mat<U>& K, const arma::Col<U>& temperature, const U k1, const U k2, const U k3, const U dk1, const U dk2, const U dk3, arma::Col<U>& dTdk);
 
 // Main code 
 int main() {
@@ -58,7 +58,9 @@ int main() {
   arma::Col<double> sens_k1;
   arma::Col<double> sens_k2;
   arma::Col<double> sens_k3;
-  compute_sensitivities<double>(grid,2,Kglobal,Tm,k1,k2,k3,dk1,dk2,dk3,sens_k1,sens_k2,sens_k3);
+  compute_sensitivity<double>(grid,3,Kglobal,Tm,k1,k2,k3,dk1,0.0,0.0,sens_k1);
+  compute_sensitivity<double>(grid,3,Kglobal,Tm,k1,k2,k3,0.0,dk2,0.0,sens_k2);
+  compute_sensitivity<double>(grid,3,Kglobal,Tm,k1,k2,k3,0.0,0.0,dk3,sens_k3);
 
   // Writing sensitivities to file
   std::vector<double> nodes = grid.get_nodes();
@@ -171,23 +173,7 @@ template <typename T,typename U> void assemble_perturbed(const mesh<T>& m, const
 
   }
   
-  /*
-  if ((k2.imag()==0.0)&&(k3.imag()==0.0)) {
-    dK /= k1.imag();
-    dF /= k1.imag();
-  }
-  else if ((k1.imag()==0.0)&&(k3.imag()==0.0)) {
-    dK /= k2.imag();
-    dF /= k2.imag();
-  }
-  else {
-    dK /= k3.imag();
-    dF /= k3.imag();
-  }
-  */
-
 }
-
 
 template <typename T> 
 void apply_dirichlet(const mesh<T>& m, T T_left, T T_right, arma::Mat<T>& K, arma::Col<T>& F) {
@@ -563,35 +549,57 @@ U L2_T(const mesh<U>& g, const arma::Col<U>& T_n, const int ngpts) {
 }
 
 template <typename U> 
-void compute_sensitivities(const mesh<U>& m, const int ngpts, const arma::Mat<U>& K, const arma::Col<U>& temperature, const U k1, const U k2, const U k3, const U dk1, const U dk2, const U dk3, arma::Col<U>& dTdk1, arma::Col<U>& dTdk2, arma::Col<U>& dTdk3) {
+void compute_sensitivity(const mesh<U>& m, const int ngpts, const arma::Mat<U>& K, const arma::Col<U>& temperature, const U k1, const U k2, const U k3, const U dk1, const U dk2, const U dk3, arma::Col<U>& dTdk) {
 
   // Declaring variables
+  for (int i=0; i<60; ++i) std::cout << "-";
+  std::cout << "\nComputing sensitivity..." << std::endl;
+  for (int i=0; i<60; ++i) std::cout << "-";
+  std::cout << std::endl;
   unsigned int nnodes = m.get_num_nodes();
-  arma::Mat<U> dKdk1(nnodes,nnodes);
-  arma::Mat<U> dKdk2(nnodes,nnodes);
-  arma::Mat<U> dKdk3(nnodes,nnodes);
-  arma::Col<U> dFdk1(nnodes);
-  arma::Col<U> dFdk2(nnodes);
-  arma::Col<U> dFdk3(nnodes);
+  arma::Mat<U> dKdk(nnodes,nnodes);
+  arma::Col<U> dFdk(nnodes);
+  arma::Col<U> A;
+  //arma::Col<U> dT_n(temperature), dT_np1(temperature);
+  arma::Col<U> dT_n = arma::ones<arma::Col<U> >(temperature.n_elem);
+  arma::Col<U> dT_np1 = arma::zeros<arma::Col<U> >(temperature.n_elem);
+  U eps = (U) 100.0;
+  U tol = (U) 1.0e-10;
+  unsigned int max_iter = 100;
+  unsigned int i=0;
 
-  // Assembling the systems of equations
-  assemble_perturbed<U,std::complex<U> >(m,ngpts,temperature,std::complex<U>(k1,dk1),std::complex<U>(k2,0.0),std::complex<U>(k3,0.0),dKdk1,dFdk1);
-  assemble_perturbed<U,std::complex<U> >(m,ngpts,temperature,std::complex<U>(k1,0.0),std::complex<U>(k2,dk2),std::complex<U>(k3,0.0),dKdk2,dFdk2);
-  assemble_perturbed<U,std::complex<U> >(m,ngpts,temperature,std::complex<U>(k1,0.0),std::complex<U>(k2,0.0),std::complex<U>(k3,dk3),dKdk3,dFdk3);
+  while ((i<max_iter)&&(eps>tol)) {
 
-  apply_dirichlet<U>(m,0.0,100.0,dKdk1,dFdk1);
-  apply_dirichlet<U>(m,0.0,100.0,dKdk2,dFdk2);
-  apply_dirichlet<U>(m,0.0,100.0,dKdk3,dFdk3);
-  // Setting up system of eqns
-  arma::Col<U> A1 = -dKdk1*temperature + dFdk1;
-  arma::Col<U> A2 = -dKdk2*temperature + dFdk2;
-  arma::Col<U> A3 = -dKdk3*temperature + dFdk3;
-  arma::solve(dTdk1,K,A1);
-  arma::solve(dTdk2,K,A2);
-  arma::solve(dTdk3,K,A3);
-  dTdk1 /= dk1;
-  dTdk2 /= dk2;
-  dTdk3 /= dk3;
+    // Assembling the systems of equations
+    // PROBLEM HERE.  dT_n IS BEING ASSEMBLED, BUT I MUST PASS THE ACTUAL SOLUTION VECTOR
+    // FOR TEMPERATURE... 
+    //assemble_perturbed<U,std::complex<U> >(m,ngpts,dT_n,std::complex<U>(k1,dk1),std::complex<U>(k2,dk2),std::complex<U>(k3,dk3),dKdk,dFdk);
+    assemble_perturbed<U,std::complex<U> >(m,ngpts,temperature+dT_n,std::complex<U>(k1,dk1),std::complex<U>(k2,dk2),std::complex<U>(k3,dk3),dKdk,dFdk);
+
+    // Constraining the system
+    /*
+    std::vector<element<U> > elems = m.get_elements();
+    int con_0 = (elems[0].get_connectivity())[0];
+    int con_end = (elems.back().get_connectivity()).back();
+    apply_dirichlet<U>(m,0.0+dT_n(con_0),100.0+con_end,dKdk,dFdk);
+    */
+    apply_dirichlet<U>(m,0.0,100.0,dKdk,dFdk);
+
+    // Setting up system of eqns
+    A = -dKdk*temperature + dFdk;
+    arma::solve(dT_np1,K,A);
+
+    // Computing norm
+    eps = arma::norm(dT_np1-dT_n)/arma::norm(dT_np1);
+
+    // Updating
+    ++i;
+    dT_n = dT_np1;
+    std::cout << "Iteration: " << i << " Residual: " << eps << std::endl;
+
+  }
+
+  dTdk = dT_np1/(dk1 + dk2 + dk3);
 
 }
 

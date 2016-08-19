@@ -1,0 +1,113 @@
+\documentclass{article}
+
+\usepackage{amsmath,amssymb}
+
+\begin{document}
+
+\section{Problem statement and formulation}
+
+Given a nonlinear heat conduction problem, solve for the sensitivity of the solution to different parameters which affect the thermal conductivity.  The problem can be written as 
+\begin{equation}
+  \frac{d}{dx} \left(k(T) \frac{dT}{dx} \right) = 0
+\end{equation}
+subject to
+\begin{equation}
+  T(0) = T_L \ \ \ \text{and} \ \ \ T(L) = T_R
+\end{equation}
+The thermal conductivity is represented by two piecewise linear segments:
+\begin{equation}
+  k(T) = \begin{cases}
+    \displaystyle k_1\left(1 - \frac{T - T_1}{T_2 - T_1}\right) + k_2 \left(\frac{T-T_1}{T_2 - T_1} \right), T_1 \leqslant T \leqslant T_2 \\[0.15in]
+    \displaystyle k_2\left(1 - \frac{T - T_2}{T_3 - T_2}\right) + k_3 \left(\frac{T-T_2}{T_3 - T_2} \right), T_2 < T \leqslant T_3 \\
+  \end{cases}
+\end{equation}
+
+Defining the residual as
+\begin{equation}
+  \mathcal{R} = \frac{d}{dx} \left( k(T) \frac{dT}{dx} \right) 
+\end{equation}
+then multiplying by a weight functon and integrating over an element,
+\begin{equation}
+  \pi = \int_{\Omega} w \frac{d}{dx} \left(k(T) \frac{dT}{dx}\right) \, d\Omega 
+\end{equation}
+Next, we apply integration by parts,
+\begin{equation}
+  \label{eq:weak_statement}
+  \pi = \oint_{\Gamma} k(T) w \frac{dT}{dx} \hat{\mathbf{n}}\, d\Gamma - \int_\Omega k(T) \frac{dw}{dx} \frac{dT}{dx} \, d\Omega
+\end{equation}
+Now, the weight function can be written as 
+\begin{equation}
+  w(x) = \sum_{j} V_j N_j
+\end{equation}
+where $N_j$ represents the shape functions and $V_j$ represents a vector of unknown coefficients.  Using the same shape functions for the approximation function:
+\begin{equation}
+  \widetilde{T}(x) = \sum_i c_i N_i 
+\end{equation}
+Inserting these into \eqref{eq:weak_statement} and assuming no Neumann boundary conditions,
+\begin{equation}
+  \pi = - \int_\Omega k(T) \left[ \sum_j V_j \frac{dN_j}{dx} \right] \left[\sum_i c_i \frac{dN_i}{dx} \right] \, d\Omega
+\end{equation}
+Now, making the functional stationary with respect to $V_j$ and dropping the summations for clarity,
+\begin{equation}
+  \frac{\partial \pi}{\partial V_j} = \left[\int_\Omega k(T) \frac{dN_i}{dx} \frac{dN_j}{dx} \, d\Omega \right] \, c_i = 0
+\end{equation}
+In this case, since the Lagrange basis is used, the coefficients represent temperatures at the nodes.  Integrating over the element in the computational domain,
+\begin{equation}
+  \left[\int k(T(x)) \frac{dN_i}{d\xi} \frac{dN_j}{d\xi} J \, d\xi \right] \, c_i = 0
+  \label{eq:11}
+\end{equation}
+This problem can be written as 
+\begin{equation}
+  {\bf K(u) \, u = f}
+\end{equation}
+where $\mathbf{u}$ is a vector which holds all the coefficients and $\mathbf{f}$ is full of zeros because there is no source term.  Because the problem is nonlinear, the stiffness matrix is a function of the solution $\mathbf{u}$.  Piccard iteration is used to iterative solve in the following manner:
+\begin{equation}
+  \mathbf{K}(\mathbf{u}^n) \mathbf{u}^{n+1} = \mathbf{f}
+  \label{eq:13}
+\end{equation}
+
+\section{Derivation of SACVM}
+If we want to calculate the sensitivities of the solution, $\mathbf{u}$, with respect to some parameters, $\mathbf{x}$, we can do so using the following
+\begin{equation}
+  \mathbf{K} \frac{\partial \mathbf{u}}{\partial \mathbf{x}} + \frac{\partial \mathbf{K}}{\partial \mathbf{x}}\mathbf{u} = \frac{\partial \mathbf{f}}{\partial \mathbf{x}}
+  \label{eq:14}
+\end{equation}
+We may then solve for the sensitivity as 
+\begin{equation}
+  \frac{\partial \mathbf{u}}{\partial\mathbf{x}} = \mathbf{K}^{-1}\left(\frac{\partial \mathbf{f}}{\partial \mathbf{x}} - \frac{\partial \mathbf{K}}{\partial \mathbf{x}} \mathbf{u} \right)
+\end{equation}
+Writing the derivatives using the Piccard iteration and dropping the load vector due to zero source terms,
+\begin{equation}
+  \left(\frac{\partial\mathbf{\bar{u}}}{\partial \mathbf{x}}\right)^{n+1} = - \mathbf{K}(\mathbf{\bar{u}})^{-1} \left(\frac{\partial \mathbf{K}(\mathbf{\bar{u}})}{\partial \mathbf{x}}\right)^n \mathbf{\bar{u}}
+  \label{eq:piccard}
+\end{equation}
+where the overbar denotes the solution to the original nonlinear problem.  We must now find a way to compute the gradient of the stiffness matrix with respect to the parameters.  The complex variable method for approximating derivatives can be written as
+\[
+  \frac{df}{dx} = \frac{\text{Im}[f(x + ih)]}{h} + \mathcal{O}[h^2]
+\]
+Now, applying the complex variable method to the derivative of the stiffness matrix,
+\begin{equation}
+  \left(\frac{\partial \mathbf{K}(\mathbf{\bar{u}})}{\partial \mathbf{x}}\right)^n = \underbrace{\frac{\text{Im}\left[ \mathbf{K}(\mathbf{\bar{u}} + i \mathbf{h}_\mathbf{u})\right]}{\mathbf{h}_\mathbf{u}}}_{\displaystyle\frac{\partial \mathbf{K(u)}}{\partial\mathbf{u}}} \left(\frac{\partial \mathbf{u}}{\partial \mathbf{x}}\right)^n
+\end{equation}
+This $\mathbf{h_u}$ is the perturbation in temperature due to the perturbation in the thermal conductivity.  \emph{Given a perturbation in thermal conductivity, we must solve for the corresponding perturbation in the temperature field.}  
+
+Another way to look at it:
+\[
+  \left[\Delta \mathbf{u}\right]^{n+1} = -\mathbf{K}(\mathbf{\bar{u}})^{-1} \left[\Delta \mathbf{K}(\mathbf{\bar{u}})\right]^{n} \mathbf{\bar{u}}
+\]
+\[
+  [\Delta \mathbf{u}]^{n+1} = - \mathbf{K}(\mathbf{\bar{u}})^{-1} \text{Im}\left[\mathbf{K}(\mathbf{\bar{u}}+i[\Delta\mathbf{u}]^n)\right] \mathbf{\bar{u}}
+\]
+The conductivity has to be sampled with complex temperatures.  
+
+%In the case of no source term with the Piccard iteration included,
+%\begin{equation}
+%  \frac{\partial \mathbf{u}^{n+1}}{\partial \mathbf{x}} = - \left(\mathbf{K}(\mathbf{u}^n)\right)^{-1} \frac{\partial \mathbf{K}(\mathbf{u}^n)}{\partial \mathbf{x}} \mathbf{u}^{n+1}
+%\end{equation}
+%However, this is complicated by the fact that $\mathbf{u}= \mathbf{u}(\mathbf{x})$.  This means that
+%\begin{equation}
+%  \frac{\partial \mathbf{K}(\mathbf{u}^n(\mathbf{x}))}{\partial \mathbf{x}} = \frac{\partial \mathbf{K}(\mathbf{u}^n)}{\partial\mathbf{u}^n} \frac{\partial\mathbf{u}^n}{\partial\mathbf{x}}
+%\end{equation}
+
+
+\end{document}

@@ -36,12 +36,12 @@ int main() {
   k1 = 1.0;
   k2 = 2.0;
   k3 = 6.0;
-  dk1 = k1/1000.0;
-  dk2 = k2/1000.0;
-  dk3 = k3/1000.0;
-  //dk1 = 1.0e-6;
-  //dk2 = 1.0e-6;
-  //dk3 = 1.0e-6;
+  //dk1 = k1/1000.0;
+  //dk2 = k2/1000.0;
+  //dk3 = k3/1000.0;
+  dk1 = 1.0e-6;
+  dk2 = 1.0e-6;
+  dk3 = 1.0e-6;
 
   // Creating meshes
   mesh<double> grid(nelem,LINEAR,0.0,1.0);
@@ -90,7 +90,7 @@ template <typename T> void write_data(const std::string& filename, const mesh<T>
 }
 
 template <typename T,typename U=T>
-void integrate(const element<T>& elem, const int n_gauss_pts, const std::vector<T>& nodes, const arma::Col<T>& temperature, const U k1, const U k2, const U k3, arma::Mat<U>& K_e, arma::Col<U>& F_e) {
+void integrate(const element<T>& elem, const int n_gauss_pts, const std::vector<T>& nodes, const arma::Col<U>& temperature, const U k1, const U k2, const U k3, arma::Mat<U>& K_e, arma::Col<U>& F_e) {
 
   // Zero-ing out Ke and Fe
   K_e.zeros();
@@ -130,7 +130,7 @@ void assemble(const mesh<T>& m, const int n_gauss_pts, const arma::Col<T>& tempe
   for (unsigned int en=0; en<m.get_num_elem(); ++en) {
     
     // Getting element stiffness matrix and load vector
-    integrate<T>(elements[en],n_gauss_pts,nodes,temperature,k1,k2,k3,K_e,F_e);
+    integrate<T,T>(elements[en],n_gauss_pts,nodes,temperature,k1,k2,k3,K_e,F_e);
     con = elements[en].get_connectivity();
 
     // Assembling
@@ -145,7 +145,7 @@ void assemble(const mesh<T>& m, const int n_gauss_pts, const arma::Col<T>& tempe
   
 }
 
-template <typename T,typename U> void assemble_perturbed(const mesh<T>& m, const int n_gauss_pts, const arma::Col<T>& temperature, const U k1, const U k2, const U k3, arma::Mat<T>& dK, arma::Col<T>& dF) {
+template <typename T,typename U> void assemble_perturbed(const mesh<T>& m, const int n_gauss_pts, const arma::Col<U>& temperature, const U k1, const U k2, const U k3, arma::Mat<T>& dK, arma::Col<T>& dF) {
 
   // Declaring variables
   dK.zeros();
@@ -223,7 +223,7 @@ arma::Mat<T> iterate(const mesh<T>& m, const int ngpts, const T tol, const int m
   while ((i<max_iter)&&(eps>tol)) {
 
     // Assembling system, applying bcs and solving
-    assemble(m,ngpts,Tn,k1,k2,k3,K,F);
+    assemble<T>(m,ngpts,Tn,k1,k2,k3,K,F);
     apply_dirichlet<T>(m,(T) 0.0,(T) 100.0,K,F);
     Tnp1 = solve(K,F);
 
@@ -574,9 +574,18 @@ void compute_sensitivity(const mesh<U>& m, const int ngpts, const arma::Mat<U>& 
     // PROBLEM HERE.  dT_n IS BEING ASSEMBLED, BUT I MUST PASS THE ACTUAL SOLUTION VECTOR
     // FOR TEMPERATURE... 
     //assemble_perturbed<U,std::complex<U> >(m,ngpts,dT_n,std::complex<U>(k1,dk1),std::complex<U>(k2,dk2),std::complex<U>(k3,dk3),dKdk,dFdk);
-    assemble_perturbed<U,std::complex<U> >(m,ngpts,temperature,std::complex<U>(k1,dk1),std::complex<U>(k2,dk2),std::complex<U>(k3,dk3),dKdk,dFdk);
+    arma::Col<std::complex<U> > ubar_plus_Du(temperature.size());
+    ubar_plus_Du.set_real(temperature);
+    ubar_plus_Du.set_imag(dT_n);
+    assemble_perturbed<U,std::complex<U> >(m,ngpts,ubar_plus_Du,std::complex<U>(k1,dk1),std::complex<U>(k2,dk2),std::complex<U>(k3,dk3),dKdk,dFdk);
 
     // Constraining the system
+    /*
+    std::vector<element<U> > elems = m.get_elements();
+    int con_0 = (elems[0].get_connectivity())[0];
+    int con_end = (elems.back().get_connectivity()).back();
+    apply_dirichlet<U>(m,0.0+dT_n(con_0),100.0+con_end,dKdk,dFdk);
+    */
     apply_dirichlet<U>(m,0.0,100.0,dKdk,dFdk);
 
     // Setting up system of eqns

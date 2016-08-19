@@ -33,7 +33,7 @@ template <typename A, typename B>
 B conductivity(A T, B k1, B k2, B k3) {
   A T1 = 0.0;
   A T2 = 50.0;
-  A T3 = 100.0;
+  A T3 = 1000.0;
   if ((T1<=T)&&(T<=T2)) {
     return k1*(1.0 - (T-T1)/(T2-T1)) + k2*((T-T1)/(T2-T1));
   }
@@ -56,7 +56,7 @@ B conductivity(A T, B k1, B k2, B k3) {
  */
 
 template <typename T,typename U=T>
-void sample_integrands(const element<T>& elem, const T xi, const std::vector<T>& nodes, const arma::Col<T>& temperature, const U k1, const U k2, const U k3, arma::Mat<U>& K_local, arma::Col<U>& F_local) {
+void sample_integrands(const element<T>& elem, const T xi, const std::vector<T>& nodes, const arma::Col<U>& temperature, const U k1, const U k2, const U k3, arma::Mat<U>& K_local, arma::Col<U>& F_local) {
 
   // Declaring variables
   K_local.zeros();
@@ -69,7 +69,7 @@ void sample_integrands(const element<T>& elem, const T xi, const std::vector<T>&
   // Interpolating the temperature at xi by projecting it onto the 
   // basis
   for (int i=0; i<2; ++i) {
-    Tval += temperature(con[i])*elem.N(i,xi);
+    Tval += temperature(con[i]).real()*elem.N(i,xi);
   }
 
   // Assembling element stiffness
