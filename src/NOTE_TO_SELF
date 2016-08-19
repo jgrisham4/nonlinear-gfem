@@ -1,0 +1,4 @@
+The problem is on line 575 of sensitivities_sacvm.cpp.  
+I need to pass the temperature.  The thermal conductivity
+is being evaluated at dT, not T.  This is where the NaNs 
+are coming from.
