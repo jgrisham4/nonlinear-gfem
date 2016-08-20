@@ -12,7 +12,7 @@
 
 // Function prototypes
 template <typename T> void write_data(const std::string& filename, const mesh<T>& m, const T L2norm, const arma::Col<T>& Tn);
-template <typename T,typename U=T> void integrate(const element<T>& elem, const int n_gauss_pts, const std::vector<T>& nodes, const arma::Col<T>& temperature, const U k1, const U k2, const U k3, arma::Mat<U>& K_e, arma::Col<U>& F_e);
+template <typename T,typename U=T> void integrate(const element<T>& elem, const int n_gauss_pts, const std::vector<T>& nodes, const arma::Col<U>& temperature, const U k1, const U k2, const U k3, arma::Mat<U>& K_e, arma::Col<U>& F_e);
 template <typename T> void assemble(const mesh<T>& m, const int n_gauss_pts, const arma::Col<T>& temperature, const T k1, const T k2, const T k3, arma::Mat<T>& K, arma::Col<T>& F);
 template <typename T,typename U> void assemble_perturbed(const mesh<T>& m, const int n_gauss_pts, const arma::Col<T>& temperature, const U k1, const U k2, const U k3, arma::Mat<T>& dK, arma::Col<T>& dF);
 template <typename T> void apply_dirichlet(const mesh<T>& m, T T_left, T T_right, arma::Mat<T>& K, arma::Col<T>& F);
@@ -36,12 +36,9 @@ int main() {
   k1 = 1.0;
   k2 = 2.0;
   k3 = 6.0;
-  //dk1 = k1/1000.0;
-  //dk2 = k2/1000.0;
-  //dk3 = k3/1000.0;
-  dk1 = 1.0e-6;
-  dk2 = 1.0e-6;
-  dk3 = 1.0e-6;
+  dk1 = 1.0e-10;
+  dk2 = 1.0e-10;
+  dk3 = 1.0e-10;
 
   // Creating meshes
   mesh<double> grid(nelem,LINEAR,0.0,1.0);
@@ -223,7 +220,7 @@ arma::Mat<T> iterate(const mesh<T>& m, const int ngpts, const T tol, const int m
   while ((i<max_iter)&&(eps>tol)) {
 
     // Assembling system, applying bcs and solving
-    assemble<T,T>(m,ngpts,Tn,k1,k2,k3,K,F);
+    assemble<T>(m,ngpts,Tn,k1,k2,k3,K,F);
     apply_dirichlet<T>(m,(T) 0.0,(T) 100.0,K,F);
     Tnp1 = solve(K,F);
 
